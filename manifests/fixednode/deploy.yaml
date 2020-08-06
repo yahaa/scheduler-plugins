@@ -1,0 +1,129 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fixednode
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fixednode-as-kube-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: fixednode
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: system:kube-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fixednode-as-volume-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: fixednode
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: system:volume-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fixednode-as-admin
+subjects:
+  - kind: ServiceAccount
+    name: fixednode
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: scheduler
+    tier: control-plane
+  name: fixednode-scheduler
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: scheduler
+      tier: control-plane
+  template:
+    metadata:
+      labels:
+        component: scheduler
+        tier: control-plane
+        version: second
+    spec:
+      containers:
+        - command:
+            - /usr/local/bin/kube-scheduler
+            - --address=0.0.0.0
+            - --config=/etc/kubernetes/scheduler-config.yaml
+          image: yzihua/kube-scheduler:dev3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 10251
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: kube-second-scheduler
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 10251
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+          volumeMounts:
+            - mountPath: /etc/kubernetes
+              name: scheduler-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      serviceAccountName: fixednode
+      volumes:
+        - name: scheduler-config
+          configMap:
+            name: scheduler-config
+---
+apiVersion: v1
+data:
+  scheduler-config.yaml: |
+    apiVersion: kubescheduler.config.k8s.io/v1alpha2
+    kind: KubeSchedulerConfiguration
+    leaderElection:
+      leaderElect: false
+    profiles:
+    - schedulerName: fixednode
+      plugins:
+        filter:
+          enabled:
+            - name: fixednode
+        postBind:
+          enabled:
+            - name: fixednode
+kind: ConfigMap
+metadata:
+  name: scheduler-config
+  namespace: kube-system

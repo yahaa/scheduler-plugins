@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	Name               = "FixedNodeScheduling"
+	Name               = "fixednode"
 	ownerResource      = "StatefulSet"
 	fixedNodeEnableKey = "fixednode.scheduling.sigs.k8s.io"
 	fixedNodeRecordKey = "fixednode.scheduling.sigs.k8s.io/record"
@@ -74,9 +74,6 @@ func (fn *FixedNode) setScheduledRecord(ctx context.Context, sts *appsv1.Statefu
 	stsCopy.Annotations[fixedNodeRecordKey] = string(data)
 
 	_, err = fn.clientSet.AppsV1().StatefulSets(stsCopy.Namespace).Update(ctx, stsCopy, metav1.UpdateOptions{})
-	if err != nil {
-		err = fmt.Errorf("sts do update err: %w", err)
-	}
 	return err
 }
 func (fn *FixedNode) getStatefulSet(pod *corev1.Pod) (*appsv1.StatefulSet, error) {
